@@ -42,9 +42,11 @@ export function Game({ onGameOver }: { onGameOver:()=>void }) {
         const winner = checkWin(newBoard)
         if (winner) {
           setGameResult(`The winner is ${winner}! Press any key to continue.`)
+          return
         }
         if (checkDraw(newBoard)) {
           setGameResult('Draw. Press any key to continue.')
+          return
         }
 
         setCurrentTurn(c => c === 'X' ? 'O' : 'X')
