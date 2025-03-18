@@ -3,12 +3,14 @@ import { Box, Text, useInput } from "ink";
 import { BoardState, getInitialBoardState } from "./BoardState.js";
 import { Board } from "./Board.js";
 
+export type GameDifficulty = 'easy' | 'intermediate' | 'impossible'
+
 export type ZeroOneTwo = 0 | 1 | 2
 
 type GameProps = {
   cpuPlayer: 'X' | 'O' | null,
   numberOfPlayers: number,
-  difficulty?: 'easy' | 'intermediate',
+  difficulty?: GameDifficulty,
   onGameOver: () => void
 }
 
@@ -118,7 +120,7 @@ type GameState = {
 
 type Action =
   | { type: 'MAKE_PLAYER_MOVE', row: ZeroOneTwo, col: ZeroOneTwo }
-  | { type: 'MAKE_CPU_MOVE', difficulty: 'easy' | 'intermediate' }
+  | { type: 'MAKE_CPU_MOVE', difficulty: GameDifficulty }
 
 function reducer(state: GameState, action: Action): GameState {
   switch (action.type) {
@@ -145,14 +147,10 @@ function reducer(state: GameState, action: Action): GameState {
       switch (action.difficulty) {
         case 'easy': {
           // Choose a random empty cell
-          let r, c
-          do {
-            r = Math.floor(Math.random() * 3) as ZeroOneTwo
-            c = Math.floor(Math.random() * 3) as ZeroOneTwo
-          } while (state.board[r][c] !== null)
-
+          let cell = getRandomEmptyCell(state.board)
+          if (!cell) return state
           const newBoard = cloneBoardState(state.board)
-          newBoard[r][c] = state.currentTurn
+          newBoard[cell.row][cell.col] = state.currentTurn
 
           return {
             ...state,
@@ -162,7 +160,32 @@ function reducer(state: GameState, action: Action): GameState {
           }
         }
         case 'intermediate': {
-          throw new Error('Not implemented')
+          let cell = getIntermediateCpuMove(state.board, state.currentTurn)
+          const newBoard = cloneBoardState(state.board)
+          newBoard[cell.row][cell.col] = state.currentTurn
+
+          return {
+            ...state,
+            board: newBoard,
+            currentTurn: state.currentTurn === 'X' ? 'O' : 'X',
+            gameResult: getGameResult({ ...state, board: newBoard })
+          }
+        }
+        case 'impossible': {
+          const newBoard = cloneBoardState(state.board)
+          for (let r of [0, 1, 2] as const) {
+            for (let c of [0, 1, 2] as const) {
+              if (!newBoard[r][c]) {
+                newBoard[r][c] = state.currentTurn
+              }
+            }
+          }
+          return {
+            ...state,
+            board: newBoard,
+            currentTurn: state.currentTurn === 'X' ? 'O' : 'X',
+            gameResult: getGameResult({ ...state, board: newBoard })
+          }
         }
         default:
           const _exhaustiveCheck: never = action.difficulty
@@ -184,4 +207,69 @@ function getGameResult(state: GameState): string | null {
     return 'Draw. Press any key to continue.'
   }
   return null
+}
+
+/**
+ * Returns the row and column of a cell that the CPU should fill. The CPU will will if it can, otherwise it will block
+ * the player from winning. If neither of those conditions are met, it will make a random move.
+ * @param board The current board state
+ * @param cpuPlayer The player that the CPU is playing as
+ * @returns The row and column of the cell
+ */
+function getIntermediateCpuMove(board: BoardState, cpuPlayer: 'X' | 'O'): { row: ZeroOneTwo, col: ZeroOneTwo } {
+  // Two rules: if the CPU can win, it should win. If the CPU can block the player from winning, it should do that.
+  let winCell = findThirdCell(board, cpuPlayer)
+  if (winCell) {
+    return winCell
+  }
+
+  let blockCell = findThirdCell(board, cpuPlayer === 'X' ? 'O' : 'X')
+  if (blockCell) {
+    return blockCell
+  }
+
+  return getRandomEmptyCell(board)!
+}
+
+/**
+ * Returns the row and column of a cell that, if filled by the player, would result in a win.
+ * Returns null if no such cell exists.
+ * @param board The current board state
+ * @param player The player to check for
+ * @returns The row and column of the cell, or null if no such cell exists
+ */
+function findThirdCell(board: BoardState, player: 'X' | 'O'): { row: ZeroOneTwo, col: ZeroOneTwo } | null {
+  for (let r of [0, 1, 2] as const) {
+    for (let c of [0, 1, 2] as const) {
+      if (board[r][c]) {
+        // If this cell is already occupied, skip it
+        continue
+      }
+      let proposeBoard = cloneBoardState(board)
+      proposeBoard[r][c] = player
+      if (checkWin(proposeBoard)) {
+        return { row: r, col: c }
+      }
+    }
+  }
+
+  return null
+}
+
+/**
+ * Returns a random empty cell on the board. If the board is full, returns null.
+ * @param board The current board state
+ * @returns The row and column of the cell, or null if the board is full
+ */
+function getRandomEmptyCell(board: BoardState): { row: ZeroOneTwo, col: ZeroOneTwo } | null {
+  if (checkDraw(board)) {
+    return null
+  }
+
+  let r, c
+  do {
+    r = Math.floor(Math.random() * 3) as ZeroOneTwo
+    c = Math.floor(Math.random() * 3) as ZeroOneTwo
+  } while (board[r][c] !== null)
+  return { row: r, col: c }
 }
