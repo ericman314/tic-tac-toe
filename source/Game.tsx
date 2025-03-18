@@ -8,7 +8,7 @@ export type ZeroOneTwo = 0 | 1 | 2
 type GameProps = {
   cpuPlayer: 'X' | 'O' | null,
   numberOfPlayers: number,
-  difficulty: 'easy' | 'intermediate',
+  difficulty?: 'easy' | 'intermediate',
   onGameOver: () => void
 }
 
